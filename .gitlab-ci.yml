@@ -1,0 +1,20 @@
+stages:
+  - build
+build-test:
+  stage: build
+  image: dev-hthxharbor.utfinancing.com/base/centos7-zh-tz:stable
+  tags:
+    - kubernetes
+  before_script:
+    - docker login -u admin -p Harbor12345 https://dev-hthxharbor.utfinancing.com
+  script:
+    - cd /builds/chat-sd/chat-sd-backend
+    - mkdir output
+    - cd /builds/chat-sd
+    - tar -zcvf chat-sd-backend.tgz chat-sd-backend
+    - cd /builds/chat-sd/chat-sd-backend/.deploy
+    - mv /builds/chat-sd/chat-sd-backend.tgz .
+    - docker build -t dev-hthxharbor.utfinancing.com/chat-ai/chat-sd-backend-busybox:tmp .
+  after_script:
+    - docker push dev-hthxharbor.utfinancing.com/chat-ai/chat-sd-backend-busybox:tmp
+    # - echo "镜像版本号 -> "$CI_COMMIT_SHORT_SHA

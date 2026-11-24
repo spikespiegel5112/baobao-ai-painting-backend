@@ -1,1 +1,1 @@
-# baobao-ai-painting-backend
+# chat-sd-backend
