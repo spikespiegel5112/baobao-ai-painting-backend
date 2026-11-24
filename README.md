@@ -1,4 +1,4 @@
-# chat-sd-backend
+# baobao-ai-painting-backend
 
 ## 项目介绍
 
