@@ -67,62 +67,67 @@ vae_fp16_fix = AutoencoderKL.from_pretrained(
 
 
 def trigger_txt_2_img_by_queue(request):
-    request_bytes = request.body
-    request_json = json.loads(request_bytes)
-    user_id = request_json.get('userId')
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    all_data = session.query(Queue).all()
-    data = session.query(Queue).first()
-    print('=====trigger_txt_2_img_by_queue=====')
-    # print(len(data))
-    length = len(all_data)
-    if length == 0:
-        return json_response_ensure_ascii({
-            "message": '待生成队列为空',
-            'code': 10002,
-        })
-    time.sleep(10)
-    fist_data_index = 0
-    last_data_index = length - 1
-    # execute_data = data[fist_data_index]
-    execute_data = data
+    session = None
+    try:
+        request_bytes = request.body
+        request_json = json.loads(request_bytes)
+        user_id = request_json.get('userId')
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        all_data = session.query(Queue).all()
+        data = session.query(Queue).first()
+        print('=====trigger_txt_2_img_by_queue=====')
+        # print(len(data))
+        length = len(all_data)
+        if length == 0:
+            return json_response_ensure_ascii({
+                "message": '待生成队列为空',
+                'code': 10002,
+            })
+        time.sleep(10)
+        fist_data_index = 0
+        last_data_index = length - 1
+        # execute_data = data[fist_data_index]
+        execute_data = data
 
-    # execute_data = execute_data.to_json()
-    other_settings_string = execute_data.otherSettings
-    other_settings = json.loads(other_settings_string)
-    print('=====other_settings=====')
-    print(other_settings)
-    params = {
-        'positive_prompt': execute_data.positivePrompt,
-        'custom_positive_prompt': execute_data.customPositivePrompt,
-        'negative_prompt': execute_data.negativePrompt,
-        'custom_negative_prompt': execute_data.customNegativePrompt,
-        'num_inference_steps': execute_data.numInferenceSteps,
-        'width': execute_data.width,
-        'height': execute_data.height,
-        'session_id': execute_data.sessionId,
-        'num_inference_steps_refiner': other_settings.get('numInferenceStepsRefiner', ''),
-        'seed': execute_data.seed,
+        # execute_data = execute_data.to_json()
+        other_settings_string = execute_data.otherSettings
+        other_settings = json.loads(other_settings_string)
+        print('=====other_settings=====')
+        print(other_settings)
+        params = {
+            'positive_prompt': execute_data.positivePrompt,
+            'custom_positive_prompt': execute_data.customPositivePrompt,
+            'negative_prompt': execute_data.negativePrompt,
+            'custom_negative_prompt': execute_data.customNegativePrompt,
+            'num_inference_steps': execute_data.numInferenceSteps,
+            'width': execute_data.width,
+            'height': execute_data.height,
+            'session_id': execute_data.sessionId,
+            'num_inference_steps_refiner': other_settings.get('numInferenceStepsRefiner', ''),
+            'seed': execute_data.seed,
 
-        'enable_attention_slicing': other_settings.get('enableAttentionSlicing', ''),
-        'enable_vae_slicing': other_settings.get('enableVaeSlicing', ''),
-        'enable_vae_tiling': other_settings.get('enableVaeTiling', ''),
-        'enable_xformers_memory_efficient_attention': other_settings.get(
-            'enableXformersMemoryEfficientAttention', ''),
+            'enable_attention_slicing': other_settings.get('enableAttentionSlicing', ''),
+            'enable_vae_slicing': other_settings.get('enableVaeSlicing', ''),
+            'enable_vae_tiling': other_settings.get('enableVaeTiling', ''),
+            'enable_xformers_memory_efficient_attention': other_settings.get(
+                'enableXformersMemoryEfficientAttention', ''),
 
-        # welink_user_id : last_execute_data.welinkUserId')
-        'current_generating_user_comes_from': execute_data.userComesFrom,
-        # 'current_generating_user_id': other_settings['appUserId'],
-    }
-    # queue_data = session.query(Queue).filter_by(userId=userId).first()
-    print('=====params=====')
-    print(params)
-    session.delete(data)
+            # welink_user_id : last_execute_data.welinkUserId')
+            'current_generating_user_comes_from': execute_data.userComesFrom,
+            # 'current_generating_user_id': other_settings['appUserId'],
+        }
+        # queue_data = session.query(Queue).filter_by(userId=userId).first()
+        print('=====params=====')
+        print(params)
+        session.delete(data)
 
-    session.commit()
-    session.close()
-    return txt_2_img(params)
+        session.commit()
+        session.close()
+        return txt_2_img(params)
+    finally:
+        if session is not None:
+            session.close()
 
 
 def handle_txt_2_img(request):
@@ -707,87 +712,97 @@ def handle_check_queue_by_user_id(request):
 
 
 def check_queue(user_id):
-    global on_progress_session_id
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    data = session.query(Queue)
-    all_data = data
-    user_data = data.filter_by(userId=user_id)
+    session = None
+    try:
+        global on_progress_session_id
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        data = session.query(Queue)
+        all_data = data
+        user_data = data.filter_by(userId=user_id)
 
-    all_data_length = len(all_data.all())
-    user_data_length = len(user_data.all())
+        all_data_length = len(all_data.all())
+        user_data_length = len(user_data.all())
 
-    all_data_list = []
-    if all_data_length > 0:
-        for item in all_data:
-            all_data_list.append(item.to_json())
+        all_data_list = []
+        if all_data_length > 0:
+            for item in all_data:
+                all_data_list.append(item.to_json())
 
-    user_data_list = []
-    if user_data_length > 0:
-        for item in user_data:
-            user_data_list.append(item.to_json())
+        user_data_list = []
+        if user_data_length > 0:
+            for item in user_data:
+                user_data_list.append(item.to_json())
 
-    print('=====user_data=====')
-    print(user_data)
+        print('=====user_data=====')
+        print(user_data)
 
-    message = None
-    code = None
-    data = None
-    result = []
+        message = None
+        code = None
+        data = None
+        result = []
 
-    if all_data_length == 0:
-        message = '整体队列为空'
-        code = 10000
+        if all_data_length == 0:
+            message = '整体队列为空'
+            code = 10000
 
-    elif user_data_length == 0:
-        message = '本用户队列为空'
-        code = 10001
+        elif user_data_length == 0:
+            message = '本用户队列为空'
+            code = 10001
 
-    elif user_data_length > 0:
-        print('on_progress_session_id+++++', on_progress_session_id)
-        for item in user_data_list:
-            result.append({
-                'data': item,
-                'active': item['sessionId'] == on_progress_session_id
-            })
+        elif user_data_length > 0:
+            print('on_progress_session_id+++++', on_progress_session_id)
+            for item in user_data_list:
+                result.append({
+                    'data': item,
+                    'active': item['sessionId'] == on_progress_session_id
+                })
 
-        message = '本用户队列有待执行任务'
-        code = 10002
-        data = result
+            message = '本用户队列有待执行任务'
+            code = 10002
+            data = result
 
-    return {
-        'message': message,
-        'code': code,
-        'data': data,
-        'onProgressSessionId': on_progress_session_id,
-    }
+        return {
+            'message': message,
+            'code': code,
+            'data': data,
+            'onProgressSessionId': on_progress_session_id,
+        }
+    finally:
+        if session is not None:
+            session.close()
 
 
 def delete_queue(request):
-    request_bytes = request.body
-    request_json = json.loads(request_bytes)
-    session_id_list = request_json.get('sessionId')
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    for item in session_id_list:
-        data = session.query(Queue).filter_by(sessionId=item)
-        data.delete()
-    session.commit()
-    session.close()
+    session = None
+    try:
+        request_bytes = request.body
+        request_json = json.loads(request_bytes)
+        session_id_list = request_json.get('sessionId')
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        for item in session_id_list:
+            data = session.query(Queue).filter_by(sessionId=item)
+            data.delete()
+        session.commit()
+        session.close()
 
-    if len(session_id_list) > 0:
-        message = '删除Session成功'
-        code = 10000
-    else:
-        message = '无现存session'
-        code = 10001
+        if len(session_id_list) > 0:
+            message = '删除Session成功'
+            code = 10000
+        else:
+            message = '无现存session'
+            code = 10001
 
-    return json_response_ensure_ascii({
-        "result": 'Successful',
-        "data": session_id_list,
-        "message": message,
-        'code': code
-    })
+        return json_response_ensure_ascii({
+            "result": 'Successful',
+            "data": session_id_list,
+            "message": message,
+            'code': code
+        })
+    finally:
+        if session is not None:
+            session.close()
 
 
 def transform_latent_to_pil_image(latent_data):
@@ -841,57 +856,62 @@ def handle_add_queue(request):
 
 
 def add_queue(params):
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    otherSettings = json.dumps(params['otherSettings'])
-    print('=====add_queue=====')
-    print(params)
-    exist_data_by_user_json = []
+    session = None
+    try:
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        otherSettings = json.dumps(params['otherSettings'])
+        print('=====add_queue=====')
+        print(params)
+        exist_data_by_user_json = []
 
-    # exist_data = session.query(Queue).filter_by(userId=params['userId']).all()
-    session.add(
-        Queue(
-            sessionId=params['sessionId'],
-            positivePrompt=params['positivePrompt'],
-            customPositivePrompt=params['customPositivePrompt'],
-            negativePrompt=params['negativePrompt'],
-            customNegativePrompt=params['customNegativePrompt'],
-            numInferenceSteps=params['numInferenceSteps'],
-            width=params['width'],
-            height=params['height'],
-            seed=params['seed'],
+        # exist_data = session.query(Queue).filter_by(userId=params['userId']).all()
+        session.add(
+            Queue(
+                sessionId=params['sessionId'],
+                positivePrompt=params['positivePrompt'],
+                customPositivePrompt=params['customPositivePrompt'],
+                negativePrompt=params['negativePrompt'],
+                customNegativePrompt=params['customNegativePrompt'],
+                numInferenceSteps=params['numInferenceSteps'],
+                width=params['width'],
+                height=params['height'],
+                seed=params['seed'],
 
-            otherSettings=otherSettings,
+                otherSettings=otherSettings,
 
-            welinkUserId=params['welinkUserId'],
-            guestUserId=params['guestUserId'],
-            userId=params['userId'],
+                welinkUserId=params['welinkUserId'],
+                guestUserId=params['guestUserId'],
+                userId=params['userId'],
 
-            lifeCycle=params['userId'],
+                lifeCycle=params['userId'],
 
-            userComesFrom=params['userComesFrom'],
-            createdAt=datetime.datetime.now(),
-        ))
-    message = '队列添加成功'
-    code = 10000
-    # if len(exist_data) == 0:
-    # else:
-    #     for item in exist_data:
-    #         exist_data_by_user_json.append(item.to_json())
-    #     message = '本用户队列中已存在未完成任务'
-    #     code = 10001
+                userComesFrom=params['userComesFrom'],
+                createdAt=datetime.datetime.now(),
+            ))
+        message = '队列添加成功'
+        code = 10000
+        # if len(exist_data) == 0:
+        # else:
+        #     for item in exist_data:
+        #         exist_data_by_user_json.append(item.to_json())
+        #     message = '本用户队列中已存在未完成任务'
+        #     code = 10001
 
-    exist_data = session.query(Queue).filter_by(userId=params['userId']).all()
+        exist_data = session.query(Queue).filter_by(userId=params['userId']).all()
 
-    for item in exist_data:
-        exist_data_by_user_json.append(item.to_json())
+        for item in exist_data:
+            exist_data_by_user_json.append(item.to_json())
 
-    session.commit()
-    session.close()
+        session.commit()
+        session.close()
 
-    return json_response_ensure_ascii({
-        'result': 'successful',
-        'message': message,
-        'existData': exist_data_by_user_json,
-        'code': code
-    })
+        return json_response_ensure_ascii({
+            'result': 'successful',
+            'message': message,
+            'existData': exist_data_by_user_json,
+            'code': code
+        })
+    finally:
+        if session is not None:
+            session.close()

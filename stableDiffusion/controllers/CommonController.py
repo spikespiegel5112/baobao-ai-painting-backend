@@ -45,15 +45,20 @@ def get_architecture_by_os():
 
 
 def get_repo_id(repo_name):
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    data = session.query(Models).filter_by(repoName=repo_name)
-    session.commit()
-    session.close()
-    if data.first():
-        return data.first()
-    else:
-        return None
+    session = None
+    try:
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        data = session.query(Models).filter_by(repoName=repo_name)
+        session.commit()
+        session.close()
+        if data.first():
+            return data.first()
+        else:
+            return None
+    finally:
+        if session is not None:
+            session.close()
 
 
 def get_pytorch_device():
@@ -158,60 +163,65 @@ def handle_add_queue_inpaint(request):
 
 
 def add_queue(params):
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    otherSettings = json.dumps(params['otherSettings'])
-    print('=====add_queue=====')
-    print(params)
-    exist_data_by_user_json = []
+    session = None
+    try:
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        otherSettings = json.dumps(params['otherSettings'])
+        print('=====add_queue=====')
+        print(params)
+        exist_data_by_user_json = []
 
-    # exist_data = session.query(Queue).filter_by(userId=params['userId']).all()
-    session.add(
-        Queue(
-            sessionId=params['sessionId'],
-            positivePrompt=params['positivePrompt'],
-            customPositivePrompt=params['customPositivePrompt'],
-            negativePrompt=params['negativePrompt'],
-            customNegativePrompt=params['customNegativePrompt'],
-            numInferenceSteps=params['numInferenceSteps'],
-            width=params['width'],
-            height=params['height'],
-            seed=params['seed'],
+        # exist_data = session.query(Queue).filter_by(userId=params['userId']).all()
+        session.add(
+            Queue(
+                sessionId=params['sessionId'],
+                positivePrompt=params['positivePrompt'],
+                customPositivePrompt=params['customPositivePrompt'],
+                negativePrompt=params['negativePrompt'],
+                customNegativePrompt=params['customNegativePrompt'],
+                numInferenceSteps=params['numInferenceSteps'],
+                width=params['width'],
+                height=params['height'],
+                seed=params['seed'],
 
-            otherSettings=otherSettings,
+                otherSettings=otherSettings,
 
-            welinkUserId=params['welinkUserId'],
-            guestUserId=params['guestUserId'],
-            userId=params['userId'],
+                welinkUserId=params['welinkUserId'],
+                guestUserId=params['guestUserId'],
+                userId=params['userId'],
 
-            lifeCycle=params['userId'],
+                lifeCycle=params['userId'],
 
-            userComesFrom=params['userComesFrom'],
-            createdAt=datetime.now(),
-        ))
-    message = '队列添加成功'
-    code = 10000
-    # if len(exist_data) == 0:
-    # else:
-    #     for item in exist_data:
-    #         exist_data_by_user_json.append(item.to_json())
-    #     message = '本用户队列中已存在未完成任务'
-    #     code = 10001
+                userComesFrom=params['userComesFrom'],
+                createdAt=datetime.now(),
+            ))
+        message = '队列添加成功'
+        code = 10000
+        # if len(exist_data) == 0:
+        # else:
+        #     for item in exist_data:
+        #         exist_data_by_user_json.append(item.to_json())
+        #     message = '本用户队列中已存在未完成任务'
+        #     code = 10001
 
-    exist_data = session.query(Queue).filter_by(userId=params['userId']).all()
+        exist_data = session.query(Queue).filter_by(userId=params['userId']).all()
 
-    for item in exist_data:
-        exist_data_by_user_json.append(item.to_json())
+        for item in exist_data:
+            exist_data_by_user_json.append(item.to_json())
 
-    session.commit()
-    session.close()
+        session.commit()
+        session.close()
 
-    return json_response_ensure_ascii({
-        'result': 'successful',
-        'message': message,
-        'existData': exist_data_by_user_json,
-        'code': code
-    })
+        return json_response_ensure_ascii({
+            'result': 'successful',
+            'message': message,
+            'existData': exist_data_by_user_json,
+            'code': code
+        })
+    finally:
+        if session is not None:
+            session.close()
 
 
 def check_queue(user_id):
@@ -287,30 +297,35 @@ def handle_check_queue_by_user_id(request):
 
 
 def delete_queue(request):
-    request_bytes = request.body
-    request_json = json.loads(request_bytes)
-    session_id_list = request_json.get('sessionId')
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    for item in session_id_list:
-        data = session.query(Queue).filter_by(sessionId=item)
-        data.delete()
-    session.commit()
-    session.close()
+    session = None
+    try:
+        request_bytes = request.body
+        request_json = json.loads(request_bytes)
+        session_id_list = request_json.get('sessionId')
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        for item in session_id_list:
+            data = session.query(Queue).filter_by(sessionId=item)
+            data.delete()
+        session.commit()
+        session.close()
 
-    if len(session_id_list) > 0:
-        message = '删除Session成功'
-        code = 10000
-    else:
-        message = '无现存session'
-        code = 10001
+        if len(session_id_list) > 0:
+            message = '删除Session成功'
+            code = 10000
+        else:
+            message = '无现存session'
+            code = 10001
 
-    return json_response_ensure_ascii({
-        "result": 'Successful',
-        "data": session_id_list,
-        "message": message,
-        'code': code
-    })
+        return json_response_ensure_ascii({
+            "result": 'Successful',
+            "data": session_id_list,
+            "message": message,
+            'code': code
+        })
+    finally:
+        if session is not None:
+            session.close()
 
 
 def upload(request):

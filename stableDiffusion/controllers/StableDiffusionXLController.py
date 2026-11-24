@@ -69,62 +69,67 @@ vae_fp16_fix = AutoencoderKL.from_pretrained(
 
 
 def trigger_txt_2_img_by_queue(request):
-    request_bytes = request.body
-    request_json = json.loads(request_bytes)
-    user_id = request_json.get('userId')
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    all_data = session.query(Queue).all()
-    data = session.query(Queue).first()
-    print('=====trigger_txt_2_img_by_queue=====')
-    # print(len(data))
-    length = len(all_data)
-    if length == 0:
-        return json_response_ensure_ascii({
-            "message": '待生成队列为空',
-            'code': 10002,
-        })
-    time.sleep(10)
-    fist_data_index = 0
-    last_data_index = length - 1
-    # execute_data = data[fist_data_index]
-    execute_data = data
+    session = None
+    try:
+        request_bytes = request.body
+        request_json = json.loads(request_bytes)
+        user_id = request_json.get('userId')
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        all_data = session.query(Queue).all()
+        data = session.query(Queue).first()
+        print('=====trigger_txt_2_img_by_queue=====')
+        # print(len(data))
+        length = len(all_data)
+        if length == 0:
+            return json_response_ensure_ascii({
+                "message": '待生成队列为空',
+                'code': 10002,
+            })
+        time.sleep(10)
+        fist_data_index = 0
+        last_data_index = length - 1
+        # execute_data = data[fist_data_index]
+        execute_data = data
 
-    # execute_data = execute_data.to_json()
-    other_settings_string = execute_data.otherSettings
-    other_settings = json.loads(other_settings_string)
-    print('=====other_settings=====')
-    print(other_settings)
-    params = {
-        'positive_prompt': execute_data.positivePrompt,
-        'custom_positive_prompt': execute_data.customPositivePrompt,
-        'negative_prompt': execute_data.negativePrompt,
-        'custom_negative_prompt': execute_data.customNegativePrompt,
-        'num_inference_steps': execute_data.numInferenceSteps,
-        'width': execute_data.width,
-        'height': execute_data.height,
-        'session_id': execute_data.sessionId,
-        'num_inference_steps_refiner': other_settings.get('numInferenceStepsRefiner', ''),
-        'seed': execute_data.seed,
+        # execute_data = execute_data.to_json()
+        other_settings_string = execute_data.otherSettings
+        other_settings = json.loads(other_settings_string)
+        print('=====other_settings=====')
+        print(other_settings)
+        params = {
+            'positive_prompt': execute_data.positivePrompt,
+            'custom_positive_prompt': execute_data.customPositivePrompt,
+            'negative_prompt': execute_data.negativePrompt,
+            'custom_negative_prompt': execute_data.customNegativePrompt,
+            'num_inference_steps': execute_data.numInferenceSteps,
+            'width': execute_data.width,
+            'height': execute_data.height,
+            'session_id': execute_data.sessionId,
+            'num_inference_steps_refiner': other_settings.get('numInferenceStepsRefiner', ''),
+            'seed': execute_data.seed,
 
-        'enable_attention_slicing': other_settings.get('enableAttentionSlicing', ''),
-        'enable_vae_slicing': other_settings.get('enableVaeSlicing', ''),
-        'enable_vae_tiling': other_settings.get('enableVaeTiling', ''),
-        'enable_xformers_memory_efficient_attention': other_settings.get(
-            'enableXformersMemoryEfficientAttention', ''),
+            'enable_attention_slicing': other_settings.get('enableAttentionSlicing', ''),
+            'enable_vae_slicing': other_settings.get('enableVaeSlicing', ''),
+            'enable_vae_tiling': other_settings.get('enableVaeTiling', ''),
+            'enable_xformers_memory_efficient_attention': other_settings.get(
+                'enableXformersMemoryEfficientAttention', ''),
 
-        # welink_user_id : last_execute_data.welinkUserId')
-        'current_generating_user_comes_from': execute_data.userComesFrom,
-        # 'current_generating_user_id': other_settings['appUserId'],
-    }
-    # queue_data = session.query(Queue).filter_by(userId=userId).first()
-    print('=====params=====')
-    print(params)
-    session.delete(data)
+            # welink_user_id : last_execute_data.welinkUserId')
+            'current_generating_user_comes_from': execute_data.userComesFrom,
+            # 'current_generating_user_id': other_settings['appUserId'],
+        }
+        # queue_data = session.query(Queue).filter_by(userId=userId).first()
+        print('=====params=====')
+        print(params)
+        session.delete(data)
 
-    session.commit()
-    session.close()
-    return txt_2_img(params)
+        session.commit()
+        session.close()
+        return txt_2_img(params)
+    finally:
+        if session is not None:
+            session.close()
 
 
 def handle_txt_2_img(request):

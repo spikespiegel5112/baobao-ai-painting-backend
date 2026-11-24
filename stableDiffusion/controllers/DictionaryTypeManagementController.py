@@ -9,20 +9,25 @@ from .CommonController import json_response_ensure_ascii
 # from stableDiffusion.models.Images import Images
 
 def create(request):
-    session = SessionLocal()
+    session = None
     try:
-        request_json = json.loads(request.body)
+        session = SessionLocal()
+        try:
+            request_json = json.loads(request.body)
 
-        session.add(DictionaryTypes(
-            title=request_json.get('title'),
-            value=request_json.get('value'),
-        ))
-        session.commit()
-        return json_response_ensure_ascii({
-        'result': 'successful'
-        })
+            session.add(DictionaryTypes(
+                title=request_json.get('title'),
+                value=request_json.get('value'),
+            ))
+            session.commit()
+            return json_response_ensure_ascii({
+            'result': 'successful'
+            })
+        finally:
+            session.close()
     finally:
-        session.close()
+        if session is not None:
+            session.close()
 
 
 def update(request):
