@@ -27,7 +27,10 @@ def generate_file_name(num_inference_steps):
     if num_inference_steps is None:
         num_inference_steps_str = ''
     else:
-        num_inference_steps_str = '_' + str(num_inference_steps)
+        try:
+            num_inference_steps_str = '_' + str(max(0, int(num_inference_steps)))
+        except (TypeError, ValueError):
+            num_inference_steps_str = ''
     timestamp_str = str(int(time.time()))
     file_name = timestamp_str + num_inference_steps_str + '.jpg'
     return file_name
@@ -37,7 +40,7 @@ def get_architecture_by_os():
     current_os = platform.system()
     print('=====platform======')
     print(current_os)
-    if current_os is 'Darwin':
+    if current_os == 'Darwin':
         result = 'mps'
     else:
         result = 'cuda'

@@ -2,6 +2,7 @@ import base64
 import datetime
 import json
 import os
+from pathlib import Path
 from io import BytesIO
 
 from PIL import Image
@@ -12,6 +13,19 @@ from sqlalchemy.orm import sessionmaker
 from stableDiffusion.database import Images, engine
 from .CommonController import json_response_ensure_ascii, generate_file_name
 
+MAX_IMAGE_UPLOAD_BYTES = 20 * 1024 * 1024
+
+
+def _output_path(file_name):
+    output_dir = (Path(__file__).resolve().parents[2] / 'output').resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if not isinstance(file_name, str) or Path(file_name).name != file_name:
+        raise ValueError('Invalid image file name')
+    path = (output_dir / file_name).resolve()
+    if path.parent != output_dir:
+        raise ValueError('Invalid image file path')
+    return path
+
 
 def save_image_to_album(request):
     session = None
@@ -20,9 +34,11 @@ def save_image_to_album(request):
         request_json = json.loads(request.body)
         _num_inference_steps = request_json.get('numInferenceSteps')
         otherSettings = json.dumps(request_json.get('otherSettings'))
-        base64Data = request_json.get('base64Data'),
-
         file_name = generate_file_name(_num_inference_steps)
+
+        image_response = save_base64_as_image_file(request, file_name)
+        if image_response.status_code >= 400:
+            return image_response
 
         Session = sessionmaker(bind=engine)
         session = Session()
@@ -45,52 +61,49 @@ def save_image_to_album(request):
 
         session.commit()
         session.close()
-        save_base64_as_image_file(request, file_name)
         return json_response_ensure_ascii({
-            'result': 'successful'
+            'result': 'successful',
+            'fileName': file_name,
         })
     finally:
         if session is not None:
             session.close()
 
 
-def save_base64_as_image_file(request, file_name):
+def save_base64_as_image_file(request, file_name=None):
     print('=====save_base64_as_image_file=====')
     # 从POST请求中获取Base64数据
     request_byte = request.body
     request_json = json.loads(request_byte)
 
-    _base64_data = request_json.get('base64Data')
-    image_type_dictionary = ['data:image/jpeg;base64,', 'data:image/png;base64,',
-                             'data:image/gif;base64,']
-    for item in image_type_dictionary:
-        if item in _base64_data:
-            _base64_data = _base64_data.replace(item, '')
-
-    print(file_name)
     try:
-        # 解码Base64数据
-        image_data = base64.b64decode(_base64_data)
-
-        # 创建一个BytesIO对象以读取图像数据
-        image_buffer = BytesIO(image_data)
-
-        # 打开图像并保存为JPEG文件
-        image = Image.open(image_buffer)
-        image = image.convert('RGB')
-        image.save(
-            './output/' + file_name, 'JPEG')
-        print('=====save_base64_as_image_file ./output/' + file_name + ' JPEG=====')
+        if request_json.get('base64Data') is None:
+            raise ValueError('base64Data is required')
+        if not file_name:
+            file_name = generate_file_name(request_json.get('numInferenceSteps'))
+        encoded_image = request_json['base64Data']
+        if isinstance(encoded_image, str) and encoded_image.startswith('data:image/'):
+            header, separator, encoded_image = encoded_image.partition(',')
+            if not separator or header.split(';', 1)[0].split('/', 1)[1] not in {'jpeg', 'jpg', 'png', 'gif'}:
+                raise ValueError('Unsupported image format')
+        image_data = base64.b64decode(encoded_image, validate=True)
+        if len(image_data) > MAX_IMAGE_UPLOAD_BYTES:
+            raise ValueError('Image exceeds the 20 MB limit')
+        with Image.open(BytesIO(image_data)) as source_image:
+            source_image.verify()
+        with Image.open(BytesIO(image_data)) as source_image:
+            if source_image.width * source_image.height > 40_000_000:
+                raise ValueError('Image dimensions exceed the 40 megapixel limit')
+            image = source_image.convert('RGB')
+            image.save(_output_path(file_name), 'JPEG')
         return json_response_ensure_ascii({
             'result': 'successful',
             'fileName': file_name
         })
-    except Exception as error:
-        print(error)
-        print("解码并保存图像时出错:", str(error))
+    except (ValueError, base64.binascii.Error, OSError, Image.DecompressionBombError) as error:
         return json_response_ensure_ascii({
             'result': 'failed',
-            'message': str(error)
+            'message': str(error),
         }, status=400)
 
 
@@ -285,9 +298,12 @@ def delete(request):
             for item2 in data:
                 file_name = item2.to_json()
                 print(file_name['fileName'])
-                file_path = './output/' + file_name['fileName']
-                if os.path.exists(file_path):
-                    os.remove('./output/' + file_name['fileName'])
+                try:
+                    file_path = _output_path(file_name['fileName'])
+                except (TypeError, ValueError):
+                    continue
+                if file_path.exists():
+                    file_path.unlink()
                 data.delete()
 
             print('已删除数据的数据量为:', data)

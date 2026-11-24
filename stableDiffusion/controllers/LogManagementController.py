@@ -1,100 +1,57 @@
-# from diffusers import StableDiffusionPipeline
 import json
-import os
+from pathlib import Path
+
+from django.conf import settings
 
 from .CommonController import json_response_ensure_ascii
 
-# from database import engine
-# from stableDiffusion.models.Images import Images
 
-dir_path = './chat-sd-logs/'
+LOG_DIR = settings.BASE_DIR / 'chat-sd-logs'
+
+
+def _get_log_path(file_name):
+    if not isinstance(file_name, str) or not file_name or Path(file_name).name != file_name:
+        return None
+    log_dir = LOG_DIR.resolve()
+    path = (log_dir / file_name).resolve()
+    if path.parent != log_dir or not path.is_file():
+        return None
+    return path
 
 
 def get_log_list(request):
-    print("get_log_list")
-    global dir_path
-
-    file_list = os.listdir(dir_path)
-    print(file_list)
-    result = []
-    for item in file_list:
-        result.append({
-            'fileName': item
-        })
-
+    if not LOG_DIR.is_dir():
+        return json_response_ensure_ascii({'result': 'success', 'data': []})
+    file_list = sorted(path.name for path in LOG_DIR.iterdir() if path.is_file())
     return json_response_ensure_ascii({
         'result': 'success',
-        'data': result
+        'data': [{'fileName': name} for name in file_list],
     })
 
 
 def open_log_file(request):
-    global dir_path
-
-    print("open_log_file")
-    request_json = json.loads(request.body)
-
-    file_name = request_json.get('fileName')
-    file_name = str(dir_path) + str(file_name),
-    file_name = file_name[0]
-    print(file_name)
-
-    # file = os.open(file_name, 'r')
-    # os.close(file)
-
-    with open(file_name, 'r+', encoding='utf-8') as f:
-        content = f.read()
-        return json_response_ensure_ascii({
-            'result': 'success',
-            'data': content
-        })
+    request_json = json.loads(request.body or b'{}')
+    path = _get_log_path(request_json.get('fileName'))
+    if path is None:
+        return json_response_ensure_ascii({'result': 'error', 'message': 'Log file not found'}, status=404)
+    try:
+        content = path.read_text(encoding='utf-8')
+    except (OSError, UnicodeError):
+        return json_response_ensure_ascii({'result': 'error', 'message': 'Unable to read log file'}, status=400)
+    return json_response_ensure_ascii({'result': 'success', 'data': content})
 
 
 def clean_log_by_file_name(request):
-    print("clean_log_by_file_name")
-    global dir_path
-
-    print("open_log_file")
-    request_json = json.loads(request.body)
-
-    file_name = request_json.get('fileName')
-    file_name = str(dir_path) + str(file_name),
-    file_name = file_name[0]
-    print(file_name)
-
-    # file = os.open(file_name, 'r')
-    # os.close(file)
-
-    with open(file_name, 'r+', encoding='utf-8') as f:
-        f.truncate()
-        content = f.read()
-
-        return json_response_ensure_ascii({
-            'result': 'success',
-            'data': content
-        })
+    request_json = json.loads(request.body or b'{}')
+    path = _get_log_path(request_json.get('fileName'))
+    if path is None:
+        return json_response_ensure_ascii({'result': 'error', 'message': 'Log file not found'}, status=404)
+    try:
+        path.write_text('', encoding='utf-8')
+    except OSError:
+        return json_response_ensure_ascii({'result': 'error', 'message': 'Unable to clear log file'}, status=400)
+    return json_response_ensure_ascii({'result': 'success', 'data': ''})
 
 
 def update_log_by_file_name(request):
-    print("update_log_by_file_name")
-    global dir_path
-
-    print("open_log_file")
-    request_json = json.loads(request.body)
-
-    file_name = request_json.get('fileName')
-    file_name = str(dir_path) + str(file_name),
-    file_name = file_name[0]
-    print(file_name)
-
-    # file = os.open(file_name, 'r')
-    # os.close(file)
-
-    with open(file_name, 'r+', encoding='utf-8') as f:
-        f.truncate()
-        content = f.read()
-
-        return json_response_ensure_ascii({
-            'result': 'success',
-            'data': content
-        })
+    return clean_log_by_file_name(request)
